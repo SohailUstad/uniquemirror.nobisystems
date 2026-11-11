@@ -14,9 +14,9 @@ class ClientNestedOrderSerializer
     {
         return DB::table('orders')->where('client_id', $clientId)->orderBy('id')->get()->map(function ($o) {
             $sf = $o->totalSquareFeet !== null ? (float) $o->totalSquareFeet : ($o->height * $o->width * $o->quantity / 144);
-            $base = $o->baseAmount !== null ? (float) $o->baseAmount : (float) BigDecimal::of((string) $sf)->multipliedBy((string) $o->rate)->toScale(2, RoundingMode::HALF_UP);
+            $base = $o->baseAmount !== null ? (float) $o->baseAmount : (float) (string) BigDecimal::of((string) $sf)->multipliedBy((string) $o->rate)->toScale(2, RoundingMode::HALF_UP);
             $amount = $o->amount === null
-                ? (float) BigDecimal::of((string) $base)->plus((string) ($o->componentAmount ?? '0'))->toScale(2, RoundingMode::HALF_UP)
+                ? (float) (string) BigDecimal::of((string) $base)->plus((string) ($o->componentAmount ?? '0'))->toScale(2, RoundingMode::HALF_UP)
                 : (float) $o->amount;
             $category = $o->category_id ? DB::table('categories')->where('id', $o->category_id)->first() : null;
             $images = Schema::hasTable('order_images') ? DB::table('order_images')->where('order_id', $o->id)->orderBy('display_order')->orderBy('id')->get()->map(fn ($i) => [
