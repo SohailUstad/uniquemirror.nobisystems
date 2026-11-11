@@ -65,12 +65,17 @@ SQL,
             }
 
             $default = $column->column_default;
+            $nullable = strtoupper((string) $column->is_nullable) === 'YES';
+            // MariaDB returns the text NULL for a nullable column's implicit or
+            // explicit DEFAULT NULL; a quoted string literal would be returned
+            // as 'NULL' and must not be treated as a null default.
+            $nullDefault = $default === null || ($nullable && strtoupper((string) $default) === 'NULL');
             // MariaDB reports a CURRENT_TIMESTAMP default as current_timestamp().
             // MySQL can report CURRENT_TIMESTAMP or CURRENT_TIMESTAMP(n).
-            if ($default !== null && ! preg_match('/^CURRENT_TIMESTAMP(?:\([0-6]?\))?$/i', (string) $default)) {
+            if (! $nullDefault && ! preg_match('/^CURRENT_TIMESTAMP(?:\([0-6]?\))?$/i', (string) $default)) {
                 throw new RuntimeException("Unsupported default on {$table}.{$column->column_name}");
             }
-            if ($extra === 'DEFAULT_GENERATED' && $default === null) {
+            if ($extra === 'DEFAULT_GENERATED' && $nullDefault) {
                 throw new RuntimeException("Generated default is missing on {$table}.{$column->column_name}");
             }
 
@@ -80,9 +85,9 @@ SQL,
 
             $quote = static fn (string $identifier): string => '`'.str_replace('`', '``', $identifier).'`';
             $definition = $quote((string) $column->column_name).' DATETIME(6) '.
-                (strtoupper((string) $column->is_nullable) === 'YES' ? 'NULL' : 'NOT NULL');
+                ($nullable ? 'NULL' : 'NOT NULL');
 
-            if ($default !== null) {
+            if (! $nullDefault) {
                 $definition .= ' DEFAULT CURRENT_TIMESTAMP(6)';
             }
 
