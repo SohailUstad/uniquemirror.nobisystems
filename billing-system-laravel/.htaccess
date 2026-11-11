@@ -1,0 +1,9 @@
+# Protect the application if a Git deployment is accidentally placed in a web root.
+Options -Indexes
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Deny from all
+</IfModule>
