@@ -1,0 +1,23 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Reject Laravel/private deployment files if accidentally copied here.
+    RewriteRule ^(?:\.env(?:\..*)?|artisan|composer\.(?:json|lock)|phpunit\.xml|package\.json|vite\.config\.js|bootstrap|config|database|resources|routes|storage|tests|vendor)(?:/|$) - [F,NC,L]
+
+    # Preserve Authorization headers for JWT/API requests.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+    # Static public assets are served directly; /api and /files/{name} reach Laravel.
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+<FilesMatch "^(?:\.env|artisan|composer\.(?:json|lock)|phpunit\.xml|package\.json|vite\.config\.js)$">
+    Require all denied
+</FilesMatch>

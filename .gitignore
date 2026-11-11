@@ -1,0 +1,16 @@
+# Secrets and dependencies belong on the host, never in Git.
+**/.env
+**/.env.*
+!**/.env.hostinger.example
+**/auth.json
+**/vendor/
+**/node_modules/
+
+# Runtime data and generated files are not release source.
+**/storage/
+**/bootstrap/cache/*.php
+**/*.log
+**/*.sqlite
+**/.phpunit.cache/
+**/public/hot
+**/public/build/
