@@ -3,7 +3,8 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Reject Laravel/private deployment files if accidentally copied here.
+    # The app source is deployed by Git below this web root; never serve it.
+    RewriteRule ^(?:billing-system-laravel|billing-system-runtime|\.git)(?:/|$) - [F,NC,L]
     RewriteRule ^(?:\.env(?:\..*)?|artisan|composer\.(?:json|lock)|phpunit\.xml|package\.json|vite\.config\.js|bootstrap|config|database|resources|routes|storage|tests|vendor)(?:/|$) - [F,NC,L]
 
     # Preserve Authorization headers for JWT/API requests.
@@ -18,6 +19,6 @@ Options -Indexes
     RewriteRule ^ index.php [L]
 </IfModule>
 
-<FilesMatch "^(?:\.env|artisan|composer\.(?:json|lock)|phpunit\.xml|package\.json|vite\.config\.js)$">
+<FilesMatch "^(?:\.env|\.gitignore|\.gitattributes|README\.md|artisan|composer\.(?:json|lock)|phpunit\.xml|package\.json|vite\.config\.js)$">
     Require all denied
 </FilesMatch>

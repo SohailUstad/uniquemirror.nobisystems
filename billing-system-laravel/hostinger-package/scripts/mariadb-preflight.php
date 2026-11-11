@@ -45,7 +45,11 @@ $phpOk = PHP_VERSION_ID >= 80200 && $missing === [];
 report('PHP CLI', $phpOk, PHP_VERSION . ($missing ? '; missing extensions: ' . implode(', ', $missing) : '; required extensions loaded'));
 $ok = $ok && $phpOk;
 
-$env = dotenv(getcwd() . DIRECTORY_SEPARATOR . '.env');
+$appRoot = getcwd();
+$envPath = strtolower(basename(dirname($appRoot))) === 'public_html'
+    ? dirname(dirname($appRoot)) . DIRECTORY_SEPARATOR . 'billing-system-runtime' . DIRECTORY_SEPARATOR . '.env'
+    : $appRoot . DIRECTORY_SEPARATOR . '.env';
+$env = dotenv($envPath);
 $driver = envValue($env, 'DB_CONNECTION', 'mysql');
 if (!in_array($driver, ['mysql', 'mariadb'], true)) fail('DB_CONNECTION must be mysql or mariadb; no database connection attempted.');
 $host = envValue($env, 'DB_HOST');
@@ -53,7 +57,7 @@ $port = envValue($env, 'DB_PORT', '3306');
 $database = envValue($env, 'DB_DATABASE');
 $username = envValue($env, 'DB_USERNAME');
 $password = envValue($env, 'DB_PASSWORD');
-if ($host === '' || $database === '' || $username === '') fail('Set DB_HOST, DB_DATABASE, and DB_USERNAME in environment or app-root .env. Credentials are never printed.');
+if ($host === '' || $database === '' || $username === '') fail('Set DB_HOST, DB_DATABASE, and DB_USERNAME in the runtime environment file. Credentials are never printed.');
 if (!preg_match('/^[A-Za-z0-9_.:-]+$/', $host) || !preg_match('/^[0-9]{1,5}$/', $port) || !preg_match('/^[A-Za-z0-9_$-]+$/', $database)) {
     fail('Connection settings contain unsupported characters; refusing to connect.');
 }

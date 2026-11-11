@@ -7,7 +7,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 
-return Application::configure(basePath: dirname(__DIR__))
+$application = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         api: __DIR__.'/../routes/api.php',
         web: __DIR__.'/../routes/web.php',
@@ -30,3 +30,18 @@ return Application::configure(basePath: dirname(__DIR__))
             return null;
         });
     })->create();
+
+// Hostinger serves this repository from public_html/billing-system-laravel,
+// while keeping environment data and writable files in a private sibling of
+// public_html. Leave the normal standalone layout untouched.
+$applicationPath = $application->basePath();
+$publicHtmlPath = dirname($applicationPath);
+$runtimePath = dirname($publicHtmlPath).DIRECTORY_SEPARATOR.'billing-system-runtime';
+
+if (strtolower(basename($publicHtmlPath)) === 'public_html') {
+    $application->useEnvironmentPath($runtimePath);
+    $application->useStoragePath($runtimePath.DIRECTORY_SEPARATOR.'storage');
+    $application->usePublicPath($publicHtmlPath);
+}
+
+return $application;

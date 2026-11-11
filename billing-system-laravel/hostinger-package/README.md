@@ -1,65 +1,55 @@
-# Hostinger Premium Web package
+# Hostinger Git deployment layout
 
-This package prepares the Laravel target for a private-app/public-web-root layout. It does not connect to Hostinger, create databases, upload files, move data, or switch traffic.
-
-## Intended layout
+Hostinger Git deploys this repository directly into the domain's `public_html`. The repository root `index.php` and `.htaccess` serve the site and route requests to Laravel in `billing-system-laravel`. Laravel's environment and writable data live in a sibling directory outside the web root.
 
 ```text
 /home/<account>/domains/<domain>/
-├── billing-system-laravel/    # full Laravel release, .env, vendor, storage; private sibling
-└── public_html/                # public assets, this package's index.php and .htaccess only
+|-- billing-system-runtime/             # private .env and writable storage
+|   |-- .env
+|   `-- storage/
+`-- public_html/
+    |-- index.php                       # repository root front controller
+    |-- .htaccess                       # repository root rewrite rules
+    `-- billing-system-laravel/         # Laravel source and composer.lock
 ```
 
-Hostinger documents `public_html` as the usual web root and notes that the web root location cannot be changed on Web hosting. Confirm the actual directory in hPanel before using this layout. The packaged `public/index.php` boots `../billing-system-laravel`, and the rewrite rules route unmatched requests to Laravel, preserving root `/api/...` and `/files/{filename}` endpoints. Uploaded order media remains in Laravel's private local storage and is returned by the existing `/files/{filename}` controller route; do not expose `storage/` directly or create a public storage symlink.
+The Laravel bootstrap is configured to read runtime paths from `billing-system-runtime`; do not create `.env` or `storage` in the app checkout. The helper rejects either path if present there. Do not expose the Laravel source tree or runtime directory to HTTP; requests should enter through the root front controller.
 
-## Requirements to confirm in hPanel
+## First setup
 
-- Select PHP 8.2 or newer and verify required extensions (at least PDO MySQL, OpenSSL, Mbstring, Tokenizer, XML, Ctype, JSON, BCMath, Fileinfo, and GD if QR image generation requires it).
-- Enable SSH. Premium Web currently includes SSH and Composer 2; CLI PHP can differ from the PHP version configured for web requests. Check `php -v`, `composer2 --version`, and the PHP version/extensions used by hPanel before installation. If CLI PHP is too old, Hostinger documents invoking Composer with an explicit PHP binary.
-- Create a MariaDB database and user in hPanel. Use the exact host/name/user shown there; do not assume `localhost` if hPanel specifies another host. This package intentionally sets `DB_CONNECTION=mysql` because Laravel's MySQL PDO driver supports MariaDB.
-- Configure outbound SMTP before relying on OTP email flows. `MAIL_MAILER=log` is a safe default for initial setup but will not deliver email.
-- Confirm `APP_URL` uses the final HTTPS domain. Set `APP_DEBUG=false` and generate a unique `APP_KEY` once for this installation. Never commit or place a populated `.env` in `public_html`.
+1. In hPanel, create a MariaDB database and user. Record the exact host, database name, and username shown by Hostinger. Select PHP 8.2 or newer and check the web and CLI PHP versions and required extensions (PDO MySQL, OpenSSL, Mbstring, Tokenizer, XML, Ctype, JSON, BCMath, Fileinfo, and GD if QR generation needs it). Enable SSH and check `php -v` and `composer2 --version`.
+2. Connect the repository through Hostinger Git and deploy it directly to the domain's `public_html`. Confirm root `index.php`, root `.htaccess`, and `billing-system-laravel/artisan` are present.
+3. Over SSH, create the external runtime file from the template:
+
+   ```sh
+   cd ~/domains/<domain>
+   mkdir -p billing-system-runtime
+   cp public_html/billing-system-laravel/hostinger-package/.env.hostinger.example billing-system-runtime/.env
+   chmod 600 billing-system-runtime/.env
+   ```
+
+   Edit `billing-system-runtime/.env` with real database credentials, final HTTPS `APP_URL`, `APP_DEBUG=false`, and a unique `APP_KEY`. Generate an initial key value with `php -r 'echo "base64:".base64_encode(random_bytes(32)).PHP_EOL;'` and insert it in the file. Configure SMTP before relying on OTP email; `MAIL_MAILER=log` does not deliver messages. Replace all `CHANGE_ME` database/JWT placeholders. Keep the same `APP_KEY` on later deployments.
+4. Run the deployment helper from the app root:
+
+   ```sh
+   cd ~/domains/<domain>/public_html/billing-system-laravel
+   bash hostinger-package/scripts/deploy.sh
+   ```
+
+   It checks the expected layout and external runtime `.env`, creates external writable storage directories, rejects app-root `.env` or `storage`, installs locked production Composer dependencies, and runs `php artisan optimize:clear`. It creates no links or public copies and does not run migrations. Set `PHP_BIN` or `COMPOSER_BIN` if the host's command names differ.
+5. Inspect migration compatibility and take a database backup before schema changes. Run `php hostinger-package/scripts/mariadb-preflight.php` from the app root to check CLI requirements and MariaDB behavior. It uses only a temporary table. Only after reviewing its results should migrations be run manually with `php artisan migrate --force`.
+6. Verify HTTPS, login/authentication, `/api/...`, and `/files/{filename}` with a safe test upload. Confirm the root front controller and rewrite rules are used, then check logs and permissions.
+
+## Recurring pushes
+
+Hostinger Git syncs pushed code to `public_html` automatically. For ordinary code pushes, no SSH deployment command is needed. If `composer.lock` changes, or Composer dependencies need repair, connect over SSH and run `bash hostinger-package/scripts/deploy.sh` from `public_html/billing-system-laravel`. Keep `billing-system-runtime/.env`, runtime storage, and the existing `APP_KEY` across pushes. Database migrations remain a separate reviewed manual operation.
+
+The application currently uses synchronous queue processing and declares no scheduled tasks. If delayed jobs or scheduled tasks are added later, revisit the hosting setup; Hostinger cron uses UTC and shared Web hosting may not support a persistent queue worker.
+
+## Package contents and references
+
+- `.env.hostinger.example` provides a production-oriented MariaDB template without credentials.
+- `scripts/deploy.sh` prepares external runtime storage and installs locked dependencies when needed.
+- `scripts/mariadb-preflight.php` checks database compatibility using a temporary table.
 
 Hostinger references: [SSH access](https://www.hostinger.com/support/1583645-how-to-enable-ssh-access/), [Composer](https://www.hostinger.com/support/5792078-how-to-use-composer-at-hostinger/), [CLI PHP and Composer](https://www.hostinger.com/support/5792082-how-to-solve-common-composer-issues-at-hostinger/), [PHP versions](https://www.hostinger.com/support/1575755-how-to-change-the-php-version-of-your-hostinger-hosting-plan/), [document root](https://www.hostinger.com/support/1583494-what-is-the-path-to-your-website-s-root-home-directory-and-how-to-change-it-in-hostinger/), [MariaDB](https://www.hostinger.com/support/1583226-which-database-management-system-is-used-at-hostinger/), [cron jobs](https://www.hostinger.com/support/1583465-how-to-set-up-a-cron-job-at-hostinger/).
-
-## Package contents
-
-- `public/index.php` — private sibling app entry point.
-- `public/.htaccess` — rewrite, authorization header forwarding, and directory listing protection.
-- `.env.hostinger.example` — production-oriented MariaDB environment template with no credentials.
-- `scripts/deploy.sh` — install locked production Composer dependencies, sync Laravel's public assets, install entrypoint/rules, set writable runtime dirs, and clear Laravel caches. It does not run migrations or touch the database.
-- `scripts/validate-package.ps1` — local content/layout checks.
-- `scripts/mariadb-preflight.php` — checks CLI PHP requirements and database version, stored generated columns, unique indexes, and case-sensitive collation behavior using only a temporary table.
-
-## Deployment procedure (manual, when authorized)
-
-1. Back up existing website files and database. Confirm the exact domain root in hPanel. Do not run deployment from `public_html`.
-2. Upload the Laravel release into `domains/<domain>/billing-system-laravel/`, preserving the lockfile. Upload this package under that private app directory, for example as `hostinger-package/`. Keep `.env` and runtime storage private. Existing assets in `public_html` may be replaced on filename collision; review the current site's files before syncing.
-3. Copy `.env.hostinger.example` to `billing-system-laravel/.env`, fill in real values via SSH, and restrict its permissions (`chmod 600 .env`). Before Composer has installed `vendor`, generate a unique key with `php -r 'echo "base64:".base64_encode(random_bytes(32)).PHP_EOL;'` and place that output in `APP_KEY`. Never regenerate it on later releases because that invalidates encrypted data/cookies.
-4. From the app root, run `bash hostinger-package/scripts/deploy.sh`. Script requires PHP 8.2+, `composer2`, and the sibling `public_html`. It copies files from Laravel's `public/` into `public_html/`, then replaces `index.php` and `.htaccess`. It clears Laravel caches so later Git file deployments do not serve stale routes or configuration. Inspect the existing public root first; the script does not delete unrelated files.
-5. From the private Laravel app root, run `php hostinger-package/scripts/mariadb-preflight.php` after setting `.env`. Review every PASS/FAIL result before any schema changes. The script connects using the app's DB settings, prints no credentials, and creates only a random-name session temporary table; it drops that table in a `finally` cleanup and closes the session on exit. It does not read or alter application tables. It requires MariaDB 10.3+ and PHP CLI 8.2+ with the listed extensions. A failed check exits with status 1. Back up first, then run `php artisan migrate --force` manually only after compatibility review. This package avoids automatic migrations because this Laravel target's migrations/data have not been validated against production MariaDB.
-6. Confirm HTTPS, login/authentication, `/api/...`, and `/files/{filename}` with a known safe test upload. Check logs and permissions. Preserve the same `APP_KEY` across releases.
-
-The bill notification job runs with `QUEUE_CONNECTION=sync` after the HTTP response, so no persistent worker is needed for the current implementation. No scheduled tasks are declared. If code later adds delayed jobs or `Schedule` tasks, revisit this: Hostinger cron jobs run in UTC, and Hostinger's Laravel guidance shows `php artisan schedule:run` as a custom cron command. A persistent queue worker is generally not available as a long-lived process on shared Web hosting; use synchronous jobs or an external queue worker if required.
-
-The AI input guard uses the locked `yethee/tiktoken` package and a pinned `cl100k_base` vocabulary in private `resources/tiktoken/`. The archive builder verifies the vocabulary SHA-256 hash, and the app reads it locally, so AI requests do not fetch tokenizer data from the internet. The configured AI provider still needs an API key and outbound HTTPS.
-
-## Build a Hostinger upload archive
-
-Run from the repository root in Windows PowerShell:
-
-```powershell
-.\migration-staging\phase7\hostinger_package\scripts\build-release.ps1
-```
-
-The source is bounded to `C:\xampp\htdocs\billing-system-laravel` and is read only. The ZIP is written to `migration-staging/phase7/hostinger_package/release-artifacts/billing-system-laravel-hostinger.zip`. It contains Laravel application source, `composer.lock`, eligible public static files, and this package under `hostinger-package/`; install production dependencies on the host with the documented deploy script. The builder excludes `.env`, `vendor`, test artifacts, caches/logs, `.git`, and non-web files under `public/`. It inspects paths and scans text entries for credential-like content and sensitive values from the local `.env`. A failed check stops the build. It never uploads or changes the target application.
-
-## Local validation
-
-From PowerShell at the repository root:
-
-```powershell
-.\migration-staging\phase7\hostinger_package\scripts\validate-package.ps1
-```
-
-This validates required package files and key layout/security assumptions. It does not test Hostinger connectivity or execute deployment. To run the live capability check on the target host, use `php hostinger-package/scripts/mariadb-preflight.php` from the private app root; that check requires the DB connection configured and performs only temporary-table operations.

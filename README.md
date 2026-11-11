@@ -1,30 +1,30 @@
-# UniqueMirror Laravel API: Hostinger Git deployment
+# UniqueMirror Laravel API on Hostinger
 
-This repository contains the Laravel API and the files served by Hostinger's web root. It does not contain production credentials, Composer's `vendor/` directory, uploaded media, or database data.
+Hostinger's Git screen for this website allows deployment to `public_html` or a subfolder only. Deploy this repository's `main` branch to **`public_html` with the subfolder field blank**. The repository root now contains Laravel's web entry point and rewrite rules.
 
 ```text
 domains/uniquemirror.nobisystems.com/
-├── billing-system-laravel/  Laravel application, private .env, vendor, storage
-└── public_html/             Web entry point, rewrite rules, static assets
+|-- billing-system-runtime/       Private .env and storage; create over SSH
+`-- public_html/                 Git deployment root
+    |-- index.php                Boots the Laravel application below
+    |-- .htaccess                Blocks direct access to app source and Git files
+    `-- billing-system-laravel/   Laravel source and installed vendor
+        `-- .htaccess            Denies direct HTTP access to this whole directory
 ```
 
-## Connect Hostinger Git
+The Laravel source is physically inside the web root because of Hostinger's Git destination limit. Both `.htaccess` files deny direct requests for it; the production `.env` and uploaded files live in `billing-system-runtime` **outside** the web root. Do not remove either deny rule. Git does not contain credentials, `vendor/`, uploaded media, or database data.
 
-In hPanel's Git integration, select this repository and the `main` branch. **Set the deployment root to the domain directory that contains `public_html`**, for example `/home/<account>/domains/uniquemirror.nobisystems.com/` after verifying the exact path in hPanel. The default `public_html` target is unsafe for this repository because it would put Laravel application source in the web root. If hPanel does not permit the domain directory as the Git deployment root, stop and use a deployment method that can place the two sibling folders separately.
+## First setup after Git deployment
 
-Hostinger's [Git integration guide](https://www.hostinger.com/support/1583302-how-to-deploy-a-git-repository-in-hostinger/) documents selecting a branch and root directory, and automatic deployment on later pushes. Confirm the target directory before enabling auto-deployment; Git deployment can overwrite files there.
+Use SSH in `domains/uniquemirror.nobisystems.com/public_html/billing-system-laravel`:
 
-## First installation after Git sync
+1. Create the external runtime directory: `mkdir -p ../../billing-system-runtime`. Copy `hostinger-package/.env.hostinger.example` to `../../billing-system-runtime/.env`. Fill in the MariaDB values from hPanel, a unique `APP_KEY`, the existing JWT signing secret if old tokens must remain valid, HTTPS `APP_URL`, and the needed mail/FCM/AI credentials. Restrict the file with `chmod 600 ../../billing-system-runtime/.env`.
+2. Run `bash hostinger-package/scripts/deploy.sh`. It installs locked Composer dependencies, prepares external storage, and clears Laravel caches. It does not change the database.
+3. Run `php hostinger-package/scripts/mariadb-preflight.php`. After its checks pass and a database backup is available, run `php artisan migrate --force`.
+4. Verify authentication, billing, `/api/...`, and `/files/{filename}` using representative requests before sending production traffic here.
 
-Use SSH in `billing-system-laravel/`:
-
-1. Copy `hostinger-package/.env.hostinger.example` to `.env`. Fill in the MariaDB host/name/user/password from hPanel, a unique `APP_KEY`, the existing JWT signing secret if existing tokens must remain valid, the HTTPS `APP_URL`, and the needed mail/FCM/AI credentials. Keep `.env` private and outside Git.
-2. Run `bash hostinger-package/scripts/deploy.sh`. This installs locked Composer dependencies, prepares writable directories, syncs the public entry files, and clears Laravel caches. It does not migrate the database.
-3. Run `php hostinger-package/scripts/mariadb-preflight.php`. Only after its checks pass and a database backup is available, run `php artisan migrate --force`.
-4. Verify authentication, billing, `/api/...`, and `/files/{filename}` with representative requests before directing production traffic here.
-
-The full procedure and prerequisites are in [the Hostinger package guide](billing-system-laravel/hostinger-package/README.md).
+See the [Hostinger package guide](billing-system-laravel/hostinger-package/README.md) for the full setup. Hostinger's [Git integration guide](https://www.hostinger.com/support/1583302-how-to-deploy-a-git-repository-in-hostinger/) documents automatic updates from the selected branch.
 
 ## Later pushes
 
-Hostinger can sync code and `public_html` files from `main` on each push. Laravel route/config caches are cleared during first setup and should remain uncompiled so source changes take effect on Git sync. If `composer.lock` changes, rerun the deployment script over SSH. Review and run new migrations manually; Git file deployment does not apply them. Preserve and back up `.env`, `storage/`, and the MariaDB database across deployments.
+Hostinger can sync PHP source and public files from `main` automatically. Route and config caches remain uncompiled, so source updates take effect after Git sync. If `composer.lock` changes, rerun `deploy.sh` over SSH. Review and run new migrations manually; Git file deployment does not apply them. Preserve and back up external `billing-system-runtime/` and the MariaDB database across deployments.

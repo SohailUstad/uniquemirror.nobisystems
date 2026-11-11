@@ -7,9 +7,10 @@ use Illuminate\Http\Request;
 
 define('LARAVEL_START', microtime(true));
 
-$appRoot = dirname(__DIR__) . '/billing-system-laravel';
+$appRoot = __DIR__ . '/billing-system-laravel';
+$runtimeRoot = dirname(__DIR__) . '/billing-system-runtime';
 
-if (file_exists($maintenance = $appRoot . '/storage/framework/maintenance.php')) {
+if (file_exists($maintenance = $runtimeRoot . '/storage/framework/maintenance.php')) {
     require $maintenance;
 }
 
