@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Firebase\JWT\JWT;
+use App\Support\PasswordVerifier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -75,7 +76,7 @@ class RegisteredClientAuthService
         if ($row->attempts >= 5) throw new InvalidArgumentException('Too many OTP attempts. Please request a new OTP.');
         if (trim((string)$otp) === '') throw new InvalidArgumentException('OTP is required');
         DB::table('registered_client_otps')->where('id', $row->id)->increment('attempts');
-        if (!Hash::check(trim($otp), $row->otp_hash)) throw new InvalidArgumentException('Invalid OTP');
+        if (!PasswordVerifier::check(trim($otp), $row->otp_hash)) throw new InvalidArgumentException('Invalid OTP');
         DB::table('registered_client_otps')->where('id', $row->id)->update(['verified' => true]);
     }
 
@@ -108,7 +109,7 @@ class RegisteredClientAuthService
         $phone = $this->phone($phone);
         if (!$password) return null;
         $client = DB::table('registered_clients')->where('phone_number', $phone)->where('active', true)->first();
-        if (!$client || !Hash::check($password, $client->password_hash)) return null;
+        if (!$client || !PasswordVerifier::check($password, $client->password_hash)) return null;
         $secret = config('legacy.jwt.secret');
         if (!is_string($secret) || strlen($secret) < 32) throw new \RuntimeException('LEGACY_JWT_SECRET must be at least 32 bytes for HS256.');
         return ['message' => 'Login successful', 'token' => JWT::encode(['sub' => (string)$client->id, 'tokenType' => 'CLIENT', 'iat' => time()], $secret, 'HS256'), 'clientId' => (string)$client->id];

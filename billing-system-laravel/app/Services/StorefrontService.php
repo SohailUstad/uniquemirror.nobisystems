@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\PasswordVerifier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -77,7 +78,7 @@ class StorefrontService
             if (now()->greaterThan($row->expires_at)) throw new \InvalidArgumentException('OTP expired. Please request a new OTP.');
             if ((int)$row->attempts >= 5) throw new \InvalidArgumentException('Too many OTP attempts. Please request a new OTP.');
             DB::table('public_customer_otps')->where('id', $row->id)->increment('attempts');
-            if (!Hash::check(trim($otp), $row->otp_hash)) throw new \InvalidArgumentException('Invalid OTP');
+            if (!PasswordVerifier::check(trim($otp), $row->otp_hash)) throw new \InvalidArgumentException('Invalid OTP');
             DB::table('public_customer_otps')->where('id', $row->id)->update(['verified' => true]);
             $customer = DB::table('public_customers')->where('phone_number', $phone)->first();
             $token = Str::uuid()->toString();

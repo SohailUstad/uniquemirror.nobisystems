@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Firebase\JWT\JWT;
+use App\Support\PasswordVerifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +21,7 @@ class WorkerAuthController
         $worker = DB::table('workers')->join('users', 'users.id', '=', 'workers.user_id')
             ->where('workers.code', $code)->where('workers.active', true)
             ->select('workers.*', 'users.email as owner_email')->first();
-        if (! $worker || ! $worker->password_hash || ! Hash::check($password, $worker->password_hash)) {
+        if (! $worker || ! $worker->password_hash || ! PasswordVerifier::check($password, $worker->password_hash)) {
             return response()->json(['error' => 'Invalid worker code or password'], 400);
         }
         DB::table('workers')->where('id', $worker->id)->update(['last_login_at' => now()]);
@@ -47,13 +48,13 @@ class WorkerAuthController
         if (! $worker) return response()->json(['error' => 'Worker not found'], 400);
         $current = $request->input('currentPassword');
         $new = $request->input('newPassword');
-        if (! is_string($current) || ! $worker->password_hash || ! Hash::check($current, $worker->password_hash)) {
+        if (! is_string($current) || ! $worker->password_hash || ! PasswordVerifier::check($current, $worker->password_hash)) {
             return response()->json(['error' => 'Current password is incorrect'], 400);
         }
         if (! is_string($new) || mb_strlen($new) < 6) {
             return response()->json(['error' => 'Password must be at least 6 characters'], 400);
         }
-        if (Hash::check($new, $worker->password_hash)) {
+        if (PasswordVerifier::check($new, $worker->password_hash)) {
             return response()->json(['error' => 'New password must be different from the current one'], 400);
         }
         DB::table('workers')->where('id', $id)->update(['password_hash' => Hash::make($new), 'must_change_password' => false, 'updated_at' => now()]);

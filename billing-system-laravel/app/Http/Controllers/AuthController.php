@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\LegacyJwtService;
+use App\Support\PasswordVerifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -36,7 +37,7 @@ class AuthController
         $password = $request->input('password');
         $user = DB::table('users')->where('email', $email)->first();
 
-        if ($user !== null && Hash::check($password, $user->password)) {
+        if ($user !== null && PasswordVerifier::check((string) $password, (string) $user->password)) {
             return response()->json([
                 'message' => 'Login successful',
                 'token' => $jwt->issueUserToken($email),
