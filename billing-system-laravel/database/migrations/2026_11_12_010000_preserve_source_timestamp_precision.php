@@ -65,7 +65,9 @@ SQL,
             }
 
             $default = $column->column_default;
-            if ($default !== null && ! preg_match('/^CURRENT_TIMESTAMP(?:\(\d+\))?$/i', (string) $default)) {
+            // MariaDB reports a CURRENT_TIMESTAMP default as current_timestamp().
+            // MySQL can report CURRENT_TIMESTAMP or CURRENT_TIMESTAMP(n).
+            if ($default !== null && ! preg_match('/^CURRENT_TIMESTAMP(?:\([0-6]?\))?$/i', (string) $default)) {
                 throw new RuntimeException("Unsupported default on {$table}.{$column->column_name}");
             }
             if ($extra === 'DEFAULT_GENERATED' && $default === null) {
